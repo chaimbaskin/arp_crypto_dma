@@ -1,4 +1,4 @@
-export SUME_FOLDER=${HOME}/arp_crypto
+export SUME_FOLDER=${HOME}/arp_crypto_dma
 export XILINX_PATH=/opt/Xilinx/Vivado/2014.4
 export NF_PROJECT_NAME=arp_crypto
 export PROJECTS=${SUME_FOLDER}/projects
