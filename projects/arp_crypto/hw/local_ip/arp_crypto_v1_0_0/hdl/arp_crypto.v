@@ -460,8 +460,13 @@ module arp_crypto
         end
         else begin
             size        <= ip2cpu_data0_reg;
-            dma_counter <= dma_counter + byte_counter_plus - byte_counter_minus;  
-            offset      <= offset + offset_tmp;      
+            dma_counter <= dma_counter + byte_counter_plus - byte_counter_minus; 
+            if (size != ip2cpu_data0_reg || size == offset) begin
+                offset      <= 0;
+            end    
+            else begin
+                offset      <= offset + offset_tmp;
+            end
         end
     end
     
