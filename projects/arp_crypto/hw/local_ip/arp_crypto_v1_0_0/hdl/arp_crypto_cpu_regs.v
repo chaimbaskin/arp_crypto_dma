@@ -117,22 +117,6 @@ parameter C_S_AXI_ADDR_WIDTH    = 32
     reg                                 pktin_reg_clear_d;
     reg                                 pktout_reg_clear_d;
 
-    // assign default little endian
-    wire [C_S_AXI_DATA_WIDTH-1 : 0]     reg_data0_default_little;
-
-    // assign default little endian
-    wire [C_S_AXI_DATA_WIDTH-1 : 0]     reg_data1_default_little;
-
-    // assign default little endian
-    wire [C_S_AXI_DATA_WIDTH-1 : 0]     reg_data2_default_little;
-
-    // assign default little endian
-    wire [C_S_AXI_DATA_WIDTH-1 : 0]     reg_data3_default_little;
-    assign  reg_data0_default_little = `REG_DATA0_DEFAULT;
-    assign  reg_data1_default_little = `REG_DATA1_DEFAULT;
-    assign  reg_data2_default_little = `REG_DATA2_DEFAULT;
-    assign  reg_data3_default_little = `REG_DATA3_DEFAULT;
-
     // I/O Connections assignments
     assign S_AXI_AWREADY    = axi_awready;
     assign S_AXI_WREADY     = axi_wready;
@@ -375,14 +359,10 @@ parameter C_S_AXI_ADDR_WIDTH    = 32
 
             cpu2ip_flip_reg <= #1 `REG_FLIP_DEFAULT;
             cpu2ip_debug_reg <= #1 `REG_DEBUG_DEFAULT;
-            for (byte_index = 0; byte_index <= (`REG_DATA0_WIDTH/8-1); byte_index = byte_index +1)
-                cpu2ip_data0_reg[byte_index*8 +: 8] <= reg_data0_default_little[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
-            for (byte_index = 0; byte_index <= (`REG_DATA1_WIDTH/8-1); byte_index = byte_index +1)
-                cpu2ip_data1_reg[byte_index*8 +: 8] <= reg_data1_default_little[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
-            for (byte_index = 0; byte_index <= (`REG_DATA2_WIDTH/8-1); byte_index = byte_index +1)
-                cpu2ip_data2_reg[byte_index*8 +: 8] <= reg_data2_default_little[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
-            for (byte_index = 0; byte_index <= (`REG_DATA3_WIDTH/8-1); byte_index = byte_index +1)
-                cpu2ip_data3_reg[byte_index*8 +: 8] <= reg_data3_default_little[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
+            cpu2ip_data0_reg <= #1 `REG_DATA0_DEFAULT;
+            cpu2ip_data1_reg <= #1 `REG_DATA1_DEFAULT;
+            cpu2ip_data2_reg <= #1 `REG_DATA2_DEFAULT;
+            cpu2ip_data3_reg <= #1 `REG_DATA3_DEFAULT;
         end
         else begin
            if (reg_wren) //write event
@@ -403,30 +383,30 @@ parameter C_S_AXI_ADDR_WIDTH    = 32
                 end
             //Data0 Register
                 `REG_DATA0_ADDR : begin
-                    for (byte_index = 0; byte_index <= (`REG_DATA0_WIDTH/8-1); byte_index = byte_index +1)
+                    for ( byte_index = 0; byte_index <= (`REG_DATA0_WIDTH/8-1); byte_index = byte_index +1)
                         if (S_AXI_WSTRB[byte_index] == 1) begin
-                            cpu2ip_data0_reg[byte_index*8 +: 8] <= S_AXI_WDATA[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8]; //dynamic register;
+                            cpu2ip_data0_reg[byte_index*8 +: 8] <=  S_AXI_WDATA[byte_index*8 +: 8]; //dynamic register;
                         end
                 end
             //Data1 Register
                 `REG_DATA1_ADDR : begin
-                    for (byte_index = 0; byte_index <= (`REG_DATA1_WIDTH/8-1); byte_index = byte_index +1)
+                    for ( byte_index = 0; byte_index <= (`REG_DATA1_WIDTH/8-1); byte_index = byte_index +1)
                         if (S_AXI_WSTRB[byte_index] == 1) begin
-                            cpu2ip_data1_reg[byte_index*8 +: 8] <= S_AXI_WDATA[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8]; //dynamic register;
+                            cpu2ip_data1_reg[byte_index*8 +: 8] <=  S_AXI_WDATA[byte_index*8 +: 8]; //dynamic register;
                         end
                 end
             //Data2 Register
                 `REG_DATA2_ADDR : begin
-                    for (byte_index = 0; byte_index <= (`REG_DATA2_WIDTH/8-1); byte_index = byte_index +1)
+                    for ( byte_index = 0; byte_index <= (`REG_DATA2_WIDTH/8-1); byte_index = byte_index +1)
                         if (S_AXI_WSTRB[byte_index] == 1) begin
-                            cpu2ip_data2_reg[byte_index*8 +: 8] <= S_AXI_WDATA[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8]; //dynamic register;
+                            cpu2ip_data2_reg[byte_index*8 +: 8] <=  S_AXI_WDATA[byte_index*8 +: 8]; //dynamic register;
                         end
                 end
             //Data3 Register
                 `REG_DATA3_ADDR : begin
-                    for (byte_index = 0; byte_index <= (`REG_DATA3_WIDTH/8-1); byte_index = byte_index +1)
+                    for ( byte_index = 0; byte_index <= (`REG_DATA3_WIDTH/8-1); byte_index = byte_index +1)
                         if (S_AXI_WSTRB[byte_index] == 1) begin
-                            cpu2ip_data3_reg[byte_index*8 +: 8] <= S_AXI_WDATA[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8]; //dynamic register;
+                            cpu2ip_data3_reg[byte_index*8 +: 8] <=  S_AXI_WDATA[byte_index*8 +: 8]; //dynamic register;
                         end
                 end
                 default: begin
@@ -483,23 +463,19 @@ parameter C_S_AXI_ADDR_WIDTH    = 32
             end
             //Data0 Register
             `REG_DATA0_ADDR : begin
-                for (byte_index = 0; byte_index <= (`REG_DATA0_WIDTH/8-1); byte_index = byte_index +1)
-                    reg_data_out [byte_index*8 +: 8] = ip2cpu_data0_reg[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
+                reg_data_out [`REG_DATA0_BITS] =  ip2cpu_data0_reg;
             end
             //Data1 Register
             `REG_DATA1_ADDR : begin
-                for (byte_index = 0; byte_index <= (`REG_DATA1_WIDTH/8-1); byte_index = byte_index +1)
-                    reg_data_out [byte_index*8 +: 8] = ip2cpu_data1_reg[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
+                reg_data_out [`REG_DATA1_BITS] =  ip2cpu_data1_reg;
             end
             //Data2 Register
             `REG_DATA2_ADDR : begin
-                for (byte_index = 0; byte_index <= (`REG_DATA2_WIDTH/8-1); byte_index = byte_index +1)
-                    reg_data_out [byte_index*8 +: 8] = ip2cpu_data2_reg[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
+                reg_data_out [`REG_DATA2_BITS] =  ip2cpu_data2_reg;
             end
             //Data3 Register
             `REG_DATA3_ADDR : begin
-                for (byte_index = 0; byte_index <= (`REG_DATA3_WIDTH/8-1); byte_index = byte_index +1)
-                    reg_data_out [byte_index*8 +: 8] = ip2cpu_data3_reg[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];
+                reg_data_out [`REG_DATA3_BITS] =  ip2cpu_data3_reg;
             end
             //Default return value
             default: begin

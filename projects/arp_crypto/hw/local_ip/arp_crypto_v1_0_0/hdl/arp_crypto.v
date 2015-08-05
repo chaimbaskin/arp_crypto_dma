@@ -151,11 +151,11 @@ module arp_crypto
    localparam ARP_DMA           = 6'b000100;
    localparam DMA_1             = 6'b001000;
    localparam DMA_READ          = 6'b010000; 
-   localparam TRANSPERANT       = 6'b010000; 
+   localparam TRANSPERANT       = 6'b100000; 
 
    localparam MAGIC             = 32'hA5A5A5A5;
    
-   localparam DMA_IDENT         = 8'hFF;        //TBD
+   localparam DMA_IDENT         = 16'hFF;        //TBD
    localparam TYPE_HIGH         = (6+6)*8 + 2*8 -1  ; //src + dest + type 
    localparam TYPE_LOW          = (6+6)*8   ; //src + dest + type    
    localparam ARP_TYPE          = 16'h608;  
@@ -163,10 +163,10 @@ module arp_crypto
    // ------------- Regs/ wires -----------
    
    reg                              dma_arp_n;
-   reg  [10:0]                      min_count_data;
+   wire [31:0]                      min_count_data;
    reg  [10:0]                      dma_counter;
-   wire [5:0]                       byte_counter_plus;
-   wire [5:0]                       byte_counter_minus;
+   reg  [5:0]                       byte_counter_plus;
+   reg  [5:0]                       byte_counter_minus;
    
 
    
@@ -193,17 +193,17 @@ module arp_crypto
 
    
 
-   wire [C_M_AXIS_TUSER_WIDTH-1:0]  dma_s_axis_tuser;
-   wire [C_M_AXIS_DATA_WIDTH-1:0]   dma_s_axis_tdata;
-   wire [C_M_AXIS_DATA_WIDTH/8-1:0] dma_s_axis_tkeep;
-   wire  	                        dma_s_axis_tlast;
+   reg  [C_M_AXIS_TUSER_WIDTH-1:0]  dma_s_axis_tuser;
+   reg  [C_M_AXIS_DATA_WIDTH-1:0]   dma_s_axis_tdata;
+   reg  [C_M_AXIS_DATA_WIDTH/8-1:0] dma_s_axis_tkeep;
+   reg  	                    dma_s_axis_tlast;
    
 
 
 
    reg  [5:0]                       state, next_state;
    reg  [31:0]                      size,offset;
-   wire [31:0]                      offset_tmp;
+   reg  [31:0]                      offset_tmp;
 
 
    // assign offset    = ip2cpu_data1_reg;
@@ -234,7 +234,7 @@ module arp_crypto
       
          fallthrough_small_fifo
    #( .WIDTH(C_M_AXIS_DATA_WIDTH+C_M_AXIS_TUSER_WIDTH+C_M_AXIS_DATA_WIDTH/8+1),
-      .MAX_DEPTH_BITS(1500)
+      .MAX_DEPTH_BITS(16)
     )
     dma_fifo
     ( // Outputs
@@ -265,7 +265,6 @@ module arp_crypto
         m_axis_tdata = fifo_out_tdata;
         m_axis_tkeep = fifo_out_tkeep;
         m_axis_tlast = fifo_out_tlast;
-        dma_counter_en = 0;
         m_axis_tvalid = 0; 
         fifo_rd_en = 0;
         dma_arp_n = 0;  
@@ -276,25 +275,26 @@ module arp_crypto
     
         case(state)                                                
             IDLE: begin
-                m_axis_tvalid = !fifo_empty;         
-                if (m_axis_tvalid && m_axis_tready) begin                                   
+                if (!fifo_empty && m_axis_tready) begin                                   
                     fifo_rd_en = 1;                                                         
                     if (fifo_out_tdata[TYPE_HIGH : TYPE_LOW] == ARP_TYPE && min_count_data == dma_counter ) 
                     begin
+			m_axis_tvalid = 1;
                         next_state = ARP_1;
                         m_axis_tuser[15:0] = (min_count_data + 64);
                         
                     end
                     else if ( fifo_out_tuser[23:16] == DMA_IDENT)
                     begin   
-                        next_state   = DMA_1;
-                        m_axis_tuser = 0;
-                        m_axis_tdata = 0;
-                        m_axis_tkeep = 0;
-                        m_axis_tlast = 0;
+                        next_state    = DMA_1;
+                        m_axis_tuser  = 0;
+                        m_axis_tdata  = 0;
+                        m_axis_tkeep  = 0;
+                        m_axis_tlast  = 0;
                     end
                     else 
                     begin
+			m_axis_tvalid = 1;
                         next_state   = TRANSPERANT;
                     end
                 end                                                                        
@@ -369,20 +369,16 @@ module arp_crypto
             
             DMA_1: 
             begin
-                m_axis_tvalid = !fifo_empty;         
-                if (m_axis_tvalid && m_axis_tready) begin                                   
-                    fifo_rd_en = 1;
-                    m_axis_tuser = 0;
-                    m_axis_tdata = 0;
-                    m_axis_tkeep = 0;
-                    m_axis_tlast = 0;
-                end    
+                fifo_rd_en = 1;
+                m_axis_tuser = 0;
+                m_axis_tdata = 0;
+                m_axis_tkeep = 0;
+                m_axis_tlast = 0;
             end
             
           
             DMA_READ: 
             begin
-                dma_counter_en = 1;
                 dma_arp_n = 1;
                 fifo_rd_en = 1; 
                 m_axis_tuser = 0;
