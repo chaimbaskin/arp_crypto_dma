@@ -142,39 +142,73 @@ module arp_crypto
          end
       end
    endfunction // log2
+   
+
 
    // ---------- Local Parameters ---------
-   localparam IDLE              = 5'b00001;
-   localparam ARP_1             = 5'b00010;
-   localparam DATA_TX           = 5'b00100;
-   localparam HEADER_TRANS      = 5'b01000;
-   localparam NOT_ARP           = 5'b10000; 
+   localparam IDLE              = 6'b000001;
+   localparam ARP_1             = 6'b000010;
+   localparam ARP_DMA           = 6'b000100;
+   localparam DMA_1             = 6'b001000;
+   localparam DMA_READ          = 6'b010000; 
+   localparam TRANSPERANT       = 6'b010000; 
 
    localparam MAGIC             = 32'hA5A5A5A5;
-
+   
+   localparam DMA_IDENT         = 8'hFF;        //TBD
    localparam TYPE_HIGH         = (6+6)*8 + 2*8 -1  ; //src + dest + type 
    localparam TYPE_LOW          = (6+6)*8   ; //src + dest + type    
    localparam ARP_TYPE          = 16'h608;  
 
    // ------------- Regs/ wires -----------
+   
+   reg                              dma_arp_n;
+   reg  [10:0]                      min_count_data;
+   reg  [10:0]                      dma_counter;
+   wire [5:0]                       byte_counter_plus;
+   wire [5:0]                       byte_counter_minus;
+   
 
+   
+   
+   wire                             dma_fifo_empty;
+   wire                             dma_fifo_nearly_full;
+   reg                              dma_fifo_rd_en;  
+   
+   wire [C_M_AXIS_TUSER_WIDTH-1:0]  dma_fifo_out_tuser;
+   wire [C_M_AXIS_DATA_WIDTH-1:0]   dma_fifo_out_tdata;
+   wire [C_M_AXIS_DATA_WIDTH/8-1:0] dma_fifo_out_tkeep;
+   wire  	                        dma_fifo_out_tlast;
+   
    wire                             fifo_nearly_full;
    wire                             fifo_empty;
    reg                              fifo_rd_en;
+   
    wire [C_M_AXIS_TUSER_WIDTH-1:0]  fifo_out_tuser;
    wire [C_M_AXIS_DATA_WIDTH-1:0]   fifo_out_tdata;
    wire [C_M_AXIS_DATA_WIDTH/8-1:0] fifo_out_tkeep;
-   wire  	                    fifo_out_tlast;
-   wire                             fifo_tvalid;
-   wire                             fifo_tlast;
+   wire  	                        fifo_out_tlast;
+   
+   
 
-   reg  [4:0]                       state, next_state;
-   wire [31:0]                      reg_0,reg_1,reg_2,reg_3;       //for presentation. will be replaced
+   
 
-   assign reg_0 = ip2cpu_data0_reg;
-   assign reg_1 = ip2cpu_data1_reg;
-   assign reg_2 = ip2cpu_data2_reg;
-   assign reg_3 = ip2cpu_data3_reg;
+   wire [C_M_AXIS_TUSER_WIDTH-1:0]  dma_s_axis_tuser;
+   wire [C_M_AXIS_DATA_WIDTH-1:0]   dma_s_axis_tdata;
+   wire [C_M_AXIS_DATA_WIDTH/8-1:0] dma_s_axis_tkeep;
+   wire  	                        dma_s_axis_tlast;
+   
+
+
+
+   reg  [5:0]                       state, next_state;
+   reg  [31:0]                      size,offset;
+   wire [31:0]                      offset_tmp;
+
+
+   // assign offset    = ip2cpu_data1_reg;
+   // assign reg_2     = ip2cpu_data2_reg;
+   // assign reg_3     = ip2cpu_data3_reg;
 
 
    // ------------ Modules -------------
@@ -196,85 +230,243 @@ module arp_crypto
       .rd_en                        (fifo_rd_en),
       .reset                        (~axis_resetn),
       .clk                          (axis_aclk));
+      
+      
+         fallthrough_small_fifo
+   #( .WIDTH(C_M_AXIS_DATA_WIDTH+C_M_AXIS_TUSER_WIDTH+C_M_AXIS_DATA_WIDTH/8+1),
+      .MAX_DEPTH_BITS(1500)
+    )
+    dma_fifo
+    ( // Outputs
+      .dout                         ({dma_fifo_out_tlast, dma_fifo_out_tuser, dma_fifo_out_tkeep, dma_fifo_out_tdata}),
+      .full                         (),
+      .nearly_full                  (dma_fifo_nearly_full),
+      .prog_full                    (),
+      .empty                        (dma_fifo_empty),
+      // Inputs
+      .din                          ({dma_s_axis_tlast, dma_s_axis_tuser, dma_s_axis_tkeep, dma_s_axis_tdata}),
+      .wr_en                        (dma_arp_n),
+      .rd_en                        (dma_fifo_rd_en),
+      .reset                        (~axis_resetn),
+      .clk                          (axis_aclk));
 
    // ------------- Logic ------------
 
    assign s_axis_tready = !fifo_nearly_full;
+   assign min_count_data = ((1500 - 64) < (size - offset)) ? (1500 - 64) : (size - offset); 
 
   /*********************************************************************
    * Wait until the Ethernet header has been decoded and the output
    * port is found, then write the module header and move the packet
    * to the output
    **********************************************************************/
-   always @* begin
-     m_axis_tuser = fifo_out_tuser;
-     m_axis_tdata = fifo_out_tdata;
-     m_axis_tkeep = fifo_out_tkeep;
-     m_axis_tlast = fifo_out_tlast;
-     m_axis_tvalid = 0; 
-     fifo_rd_en = 0;                                             
-     next_state = state;                                        
-
-     case(state)                                                
-        IDLE: begin
-            m_axis_tvalid = !fifo_empty;         
-            if (m_axis_tvalid && m_axis_tready) begin                                   
-                fifo_rd_en = 1;                                                         
-                if (fifo_out_tdata[TYPE_HIGH : TYPE_LOW] == 16'h0608)        //ARP TYPE 
-                begin
-                    next_state                         = ARP_1;
-                    m_axis_tuser[15 : 0]  	       = 16'h3E;	
-                end
-                else
-                    next_state = NOT_ARP;
-            end                                                                        
-        end
-       
-        NOT_ARP: begin
-            m_axis_tvalid = !fifo_empty;         
-            if (m_axis_tvalid && m_axis_tready) begin                                   
-                fifo_rd_en = 1;  
-                if (fifo_out_tlast)
-                    next_state = IDLE;
+    always @* begin
+        m_axis_tuser = fifo_out_tuser;
+        m_axis_tdata = fifo_out_tdata;
+        m_axis_tkeep = fifo_out_tkeep;
+        m_axis_tlast = fifo_out_tlast;
+        dma_counter_en = 0;
+        m_axis_tvalid = 0; 
+        fifo_rd_en = 0;
+        dma_arp_n = 0;  
+        offset_tmp = 0;
+        byte_counter_plus = 0;
+        byte_counter_minus = 0;       
+        next_state = state;                                        
+    
+        case(state)                                                
+            IDLE: begin
+                m_axis_tvalid = !fifo_empty;         
+                if (m_axis_tvalid && m_axis_tready) begin                                   
+                    fifo_rd_en = 1;                                                         
+                    if (fifo_out_tdata[TYPE_HIGH : TYPE_LOW] == ARP_TYPE && min_count_data == dma_counter ) 
+                    begin
+                        next_state = ARP_1;
+                        m_axis_tuser[15:0] = (min_count_data + 64);
+                        
+                    end
+                    else if ( fifo_out_tuser[23:16] == DMA_IDENT)
+                    begin   
+                        next_state   = DMA_1;
+                        m_axis_tuser = 0;
+                        m_axis_tdata = 0;
+                        m_axis_tkeep = 0;
+                        m_axis_tlast = 0;
+                    end
+                    else 
+                    begin
+                        next_state   = TRANSPERANT;
+                    end
+                end                                                                        
             end
-        end
-       
+        
+            ARP_1: begin                            //ADD METADATA : OFFSET,MAGIC ETC.. 
+                m_axis_tvalid = !fifo_empty;
+                offset_tmp  =  dma_counter;             
+                if (m_axis_tvalid && m_axis_tready) 
+                begin                                   
+                    fifo_rd_en = 1;  
+                    m_axis_tlast = 0;
+                    m_axis_tdata[255*8-1 : 22*8]    = 0;
+                    m_axis_tdata[22*8-1  : 10*8]    = {size,offset,MAGIC}; 
+                    m_axis_tdata[10*8-1  : 0]       = fifo_out_tdata;
+                    m_axis_tkeep[31:22]             = {10{1'b0}};
+                    m_axis_tkeep[21:0]              = {22{1'b1}};
+                    next_state = ARP_DMA;
+                end
+            end
+        
+    
+            ARP_DMA: 
+            begin
+                m_axis_tvalid = 1; 
+                if (m_axis_tvalid && m_axis_tready) 
+                begin
+                    dma_fifo_rd_en = 1;
+                    m_axis_tuser = dma_fifo_out_tuser;
+                    m_axis_tdata = dma_fifo_out_tdata;
+                    m_axis_tkeep = dma_fifo_out_tkeep;
+                    m_axis_tlast = dma_fifo_out_tlast;
+                    if (dma_fifo_out_tlast) 
+                    begin
+                        next_state = IDLE;
+                    end
+                end	
+                byte_counter_minus =    (dma_fifo_out_tkeep == {32{1'b1}}) ? 32:
+                                        (dma_fifo_out_tkeep == {31{1'b1}}) ? 31:
+                                        (dma_fifo_out_tkeep == {30{1'b1}}) ? 30:
+                                        (dma_fifo_out_tkeep == {29{1'b1}}) ? 29:
+                                        (dma_fifo_out_tkeep == {28{1'b1}}) ? 28:
+                                        (dma_fifo_out_tkeep == {27{1'b1}}) ? 27:
+                                        (dma_fifo_out_tkeep == {26{1'b1}}) ? 26:
+                                        (dma_fifo_out_tkeep == {25{1'b1}}) ? 25:
+                                        (dma_fifo_out_tkeep == {24{1'b1}}) ? 24:
+                                        (dma_fifo_out_tkeep == {23{1'b1}}) ? 23:
+                                        (dma_fifo_out_tkeep == {22{1'b1}}) ? 22:
+                                        (dma_fifo_out_tkeep == {21{1'b1}}) ? 21:
+                                        (dma_fifo_out_tkeep == {20{1'b1}}) ? 20:
+                                        (dma_fifo_out_tkeep == {19{1'b1}}) ? 19:
+                                        (dma_fifo_out_tkeep == {18{1'b1}}) ? 18:
+                                        (dma_fifo_out_tkeep == {17{1'b1}}) ? 17:
+                                        (dma_fifo_out_tkeep == {16{1'b1}}) ? 16:
+                                        (dma_fifo_out_tkeep == {15{1'b1}}) ? 15:
+                                        (dma_fifo_out_tkeep == {14{1'b1}}) ? 14:
+                                        (dma_fifo_out_tkeep == {13{1'b1}}) ? 13:
+                                        (dma_fifo_out_tkeep == {12{1'b1}}) ? 12:
+                                        (dma_fifo_out_tkeep == {11{1'b1}}) ? 11:
+                                        (dma_fifo_out_tkeep == {10{1'b1}}) ? 10:
+                                        (dma_fifo_out_tkeep == {9{1'b1}}) ? 9:
+                                        (dma_fifo_out_tkeep == {8{1'b1}}) ? 8:
+                                        (dma_fifo_out_tkeep == {7{1'b1}}) ? 7:
+                                        (dma_fifo_out_tkeep == {6{1'b1}}) ? 6:
+                                        (dma_fifo_out_tkeep == {5{1'b1}}) ? 5:
+                                        (dma_fifo_out_tkeep == {4{1'b1}}) ? 4:
+                                        (dma_fifo_out_tkeep == {3{1'b1}}) ? 3:
+                                        (dma_fifo_out_tkeep == {2{1'b1}}) ? 2:
+                                        (dma_fifo_out_tkeep == {1{1'b1}}) ? 1: 
+                                                                            0;
 
-        ARP_1: begin
-            m_axis_tvalid = !fifo_empty; 
-            if (m_axis_tvalid && m_axis_tready) begin
-                fifo_rd_en = 1;
-                m_axis_tdata[255    : 30*8]    = 0;
-                m_axis_tdata[30*8-1 : 10*8]    = {reg_3,reg_2,reg_1,reg_0,MAGIC}; 
-                m_axis_tdata[10*8-1 : 0]       = fifo_out_tdata;
-                m_axis_tkeep[30-1 : 10]        = {20{1'b1}};
-                m_axis_tuser[15 : 0]  	       = 16'h3E;	
-                next_state = IDLE;
-            end	  
-        end
-
-        // DATA_ATACH: begin
-            // m_axis_tvalid = 1; 
-            // if (m_axis_tvalid && m_axis_tready) begin
-                // fifo_rd_en = 1;
-                // m_axis_tdata = key;
-                // m_axis_tkeep = 8'h0000FFFF;
-                // m_axis_tlast = 1; 
-                // state = IDLE;
-            // end
-        // end
-
-     endcase 
+            end
+            
+            DMA_1: 
+            begin
+                m_axis_tvalid = !fifo_empty;         
+                if (m_axis_tvalid && m_axis_tready) begin                                   
+                    fifo_rd_en = 1;
+                    m_axis_tuser = 0;
+                    m_axis_tdata = 0;
+                    m_axis_tkeep = 0;
+                    m_axis_tlast = 0;
+                end    
+            end
+            
+          
+            DMA_READ: 
+            begin
+                dma_counter_en = 1;
+                dma_arp_n = 1;
+                fifo_rd_en = 1; 
+                m_axis_tuser = 0;
+                m_axis_tdata = 0;
+                m_axis_tkeep = 0;
+                m_axis_tlast = 0;
+                dma_s_axis_tlast = fifo_out_tlast;
+                dma_s_axis_tuser = fifo_out_tuser;
+                dma_s_axis_tkeep = fifo_out_tkeep;
+                dma_s_axis_tdata = fifo_out_tdata;
+                if (fifo_out_tlast) 
+                begin
+                    next_state = IDLE;
+                end
+                byte_counter_plus =     (fifo_out_tkeep == {32{1'b1}}) ? 32:
+                                        (fifo_out_tkeep == {31{1'b1}}) ? 31:
+                                        (fifo_out_tkeep == {30{1'b1}}) ? 30:
+                                        (fifo_out_tkeep == {29{1'b1}}) ? 29:
+                                        (fifo_out_tkeep == {28{1'b1}}) ? 28:
+                                        (fifo_out_tkeep == {27{1'b1}}) ? 27:
+                                        (fifo_out_tkeep == {26{1'b1}}) ? 26:
+                                        (fifo_out_tkeep == {25{1'b1}}) ? 25:
+                                        (fifo_out_tkeep == {24{1'b1}}) ? 24:
+                                        (fifo_out_tkeep == {23{1'b1}}) ? 23:
+                                        (fifo_out_tkeep == {22{1'b1}}) ? 22:
+                                        (fifo_out_tkeep == {21{1'b1}}) ? 21:
+                                        (fifo_out_tkeep == {20{1'b1}}) ? 20:
+                                        (fifo_out_tkeep == {19{1'b1}}) ? 19:
+                                        (fifo_out_tkeep == {18{1'b1}}) ? 18:
+                                        (fifo_out_tkeep == {17{1'b1}}) ? 17:
+                                        (fifo_out_tkeep == {16{1'b1}}) ? 16:
+                                        (fifo_out_tkeep == {15{1'b1}}) ? 15:
+                                        (fifo_out_tkeep == {14{1'b1}}) ? 14:
+                                        (fifo_out_tkeep == {13{1'b1}}) ? 13:
+                                        (fifo_out_tkeep == {12{1'b1}}) ? 12:
+                                        (fifo_out_tkeep == {11{1'b1}}) ? 11:
+                                        (fifo_out_tkeep == {10{1'b1}}) ? 10:
+                                        (fifo_out_tkeep == {9{1'b1}}) ? 9:
+                                        (fifo_out_tkeep == {8{1'b1}}) ? 8:
+                                        (fifo_out_tkeep == {7{1'b1}}) ? 7:
+                                        (fifo_out_tkeep == {6{1'b1}}) ? 6:
+                                        (fifo_out_tkeep == {5{1'b1}}) ? 5:
+                                        (fifo_out_tkeep == {4{1'b1}}) ? 4:
+                                        (fifo_out_tkeep == {3{1'b1}}) ? 3:
+                                        (fifo_out_tkeep == {2{1'b1}}) ? 2:
+                                        (fifo_out_tkeep == {1{1'b1}}) ? 1: 
+                                                                        0;
+            end 
+            
+            TRANSPERANT: begin
+                if (fifo_out_tlast) 
+                begin
+                    next_state = IDLE;
+                end
+            end   
+            
+        endcase 
    end
 
-   always @(posedge axis_aclk) begin
-     if (~axis_resetn) begin
-       state <= IDLE;
-     end
-     else begin
-       state <= next_state;
-     end
-   end
+    always @(posedge axis_aclk) begin
+        if (~axis_resetn) begin
+            state <= IDLE;
+        end
+        else begin
+            state <= next_state;
+        end
+    end
+    
+    
+    always @(posedge axis_aclk) begin
+        if (~axis_resetn) begin
+            dma_counter <= 0;
+            size        <= 0;
+            offset      <= 0;
+        end
+        else begin
+            size        <= ip2cpu_data0_reg;
+            dma_counter <= dma_counter + byte_counter_plus - byte_counter_minus;  
+            offset      <= offset + offset_tmp;      
+        end
+    end
+    
+    
 
 
 //Registers section
