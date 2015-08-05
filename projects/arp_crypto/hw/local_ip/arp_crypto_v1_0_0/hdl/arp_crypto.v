@@ -310,8 +310,7 @@ module arp_crypto
                     m_axis_tdata[255*8-1 : 22*8]    = 0;
                     m_axis_tdata[22*8-1  : 10*8]    = {size,offset,MAGIC}; 
                     m_axis_tdata[10*8-1  : 0]       = fifo_out_tdata;
-                    m_axis_tkeep[31:22]             = {10{1'b0}};
-                    m_axis_tkeep[21:0]              = {22{1'b1}};
+                    m_axis_tkeep[31:0]              = {32{1'b1}};
                     next_state = ARP_DMA;
                 end
             end
