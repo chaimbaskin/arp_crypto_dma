@@ -275,11 +275,11 @@ module arp_crypto
     
         case(state)                                                
             IDLE: begin
+		m_axis_tvalid = !fifo_empty;
                 if (!fifo_empty && m_axis_tready) begin                                   
                     fifo_rd_en = 1;                                                         
                     if (fifo_out_tdata[TYPE_HIGH : TYPE_LOW] == ARP_TYPE && min_count_data == dma_counter ) 
                     begin
-			m_axis_tvalid = 1;
                         next_state = ARP_1;
                         m_axis_tuser[15:0] = (min_count_data + 64);
                         
@@ -287,14 +287,13 @@ module arp_crypto
                     else if ( fifo_out_tuser[23:16] == DMA_IDENT)
                     begin   
                         next_state    = DMA_1;
-                        m_axis_tuser  = 0;
-                        m_axis_tdata  = 0;
-                        m_axis_tkeep  = 0;
-                        m_axis_tlast  = 0;
+                        //m_axis_tuser  = 0;
+                        //m_axis_tdata  = 0;
+                        //m_axis_tkeep  = 0;
+                        //m_axis_tlast  = 0;
                     end
                     else 
                     begin
-			m_axis_tvalid = 1;
                         next_state   = TRANSPERANT;
                     end
                 end                                                                        
@@ -370,10 +369,11 @@ module arp_crypto
             DMA_1: 
             begin
                 fifo_rd_en = 1;
-                m_axis_tuser = 0;
-                m_axis_tdata = 0;
-                m_axis_tkeep = 0;
-                m_axis_tlast = 0;
+		next_state = DMA_READ;
+                //m_axis_tuser = 0;
+                //m_axis_tdata = 0;
+                //m_axis_tkeep = 0;
+                //m_axis_tlast = 0;
             end
             
           
@@ -381,10 +381,10 @@ module arp_crypto
             begin
                 dma_arp_n = 1;
                 fifo_rd_en = 1; 
-                m_axis_tuser = 0;
-                m_axis_tdata = 0;
-                m_axis_tkeep = 0;
-                m_axis_tlast = 0;
+                //m_axis_tuser = 0;
+                //m_axis_tdata = 0;
+                //m_axis_tkeep = 0;
+                //m_axis_tlast = 0;
                 dma_s_axis_tlast = fifo_out_tlast;
                 dma_s_axis_tuser = fifo_out_tuser;
                 dma_s_axis_tkeep = fifo_out_tkeep;
