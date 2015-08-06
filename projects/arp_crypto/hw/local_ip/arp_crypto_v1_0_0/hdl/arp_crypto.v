@@ -155,7 +155,10 @@ module arp_crypto
 
    localparam MAGIC             = 32'hA5A5A5A5;
    
-   localparam DMA_IDENT         = 16'hFF;        //TBD
+   localparam DMA_IDENT_1       = 8'h2;    
+   localparam DMA_IDENT_2       = 8'h8;  
+   localparam DMA_IDENT_3       = 8'h32;  
+   localparam DMA_IDENT_4       = 8'h128;     
    localparam TYPE_HIGH         = (6+6)*8 + 2*8 -1  ; //src + dest + type 
    localparam TYPE_LOW          = (6+6)*8   ; //src + dest + type    
    localparam ARP_TYPE          = 16'h608;  
@@ -278,9 +281,9 @@ module arp_crypto
             IDLE: begin
                 if (!fifo_empty)
                 begin
-                    if (fifo_out_tuser[23:16] == DMA_IDENT) // No output state
+                    if (fifo_out_tuser[23:16] == DMA_IDENT_1 || fifo_out_tuser[23:16] ==  DMA_IDENT_2 || fifo_out_tuser[23:16] ==  DMA_IDENT_3 || fifo_out_tuser[23:16] ==  DMA_IDENT_4) 
                     begin   
-			fifo_rd_en = 1;                                                         
+                        fifo_rd_en = 1;                                                         
                         next_state    = DMA_1;
                         m_axis_tuser  = 0;
                         m_axis_tdata  = 0;
