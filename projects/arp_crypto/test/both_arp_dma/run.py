@@ -91,7 +91,7 @@ for i in xrange(size / (1500 - 64) + 1):
     pkt = make_IP_pkt(src_MAC="aa:bb:cc:dd:ee:ff", dst_MAC="00:ca:fe:00:00:01",
                       src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=data_sent)
     pkt.payload.payload.load = '\x00' * (64 - 34) + data[ (1500 - 64) * i : (1500 - 64) * i + data_sent]
-    pkt.tuser_sport = 0xff # TODO: fix it
+    pkt.tuser_sport = 8 
     tmp_size -= data_sent
     pkt.time = (i*(1e-8))
     if isHW():
@@ -107,7 +107,7 @@ for i in range(size / (1500 - 64) + 1):
     DA = "ff:ff:ff:ff:ff:ff"
     pkt = Ether(src = SA, dst = DA) / ARP(op = 'who-has', psrc = SIP, pdst = DIP, hwsrc = SA, hwdst = HWDST)
 
-    pkt.tuser_sport = 1
+    pkt.tuser_sport = 32
     pkts.append(pkt)
     offset = pack("<L", (1500 - 64) * i)
     
