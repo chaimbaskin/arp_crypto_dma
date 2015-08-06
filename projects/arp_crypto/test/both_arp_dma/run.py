@@ -67,7 +67,7 @@ HWDST = "00:00:00:00:00:00"
 # define the data we want to use 
 size = (1500 - 64) * 1 + 150
 data_size = pack("<L", size)
-data = ''.join(['a' for i in xrange(size)])
+data = ''.join([chr(i / 0x100) + chr(i % 0x100) for i in xrange(size / 2)])
 magic = pack('<L', 0xa5a5a5a5)
 
 mres = []
