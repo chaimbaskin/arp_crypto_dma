@@ -272,6 +272,7 @@ module arp_crypto
         byte_counter_plus = 0;
         byte_counter_minus = 0;       
         next_state = state;                                        
+	dma_fifo_rd_en = 0;
     
         case(state)                                                
             IDLE: begin
@@ -293,7 +294,7 @@ module arp_crypto
                         begin
 			    $display ("%x %x", fifo_out_tdata[TYPE_HIGH : TYPE_LOW], ARP_TYPE);
 			    fifo_rd_en = 1;                                                         
-                            if (fifo_out_tdata[TYPE_HIGH : TYPE_LOW] == ARP_TYPE) //&& min_count_data <= (size - offset) ) 
+                            if (fifo_out_tdata[TYPE_HIGH : TYPE_LOW] == ARP_TYPE && min_count_data <= (size - offset) ) 
                             begin
                                 next_state = ARP_1;
                                 m_axis_tuser[15:0] = (min_count_data + 64);
@@ -309,7 +310,7 @@ module arp_crypto
         
             ARP_1: begin                            //ADD METADATA : OFFSET,MAGIC ETC.. 
                 m_axis_tvalid = !fifo_empty;
-                offset_tmp  =  dma_counter;             
+                offset_tmp  =  min_count_data;             
                 if (m_axis_tvalid && m_axis_tready) 
                 begin                                   
                     fifo_rd_en = 1;  

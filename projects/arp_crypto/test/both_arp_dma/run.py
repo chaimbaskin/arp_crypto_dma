@@ -109,16 +109,16 @@ for i in range(size / (1500 - 64) + 1):
 
     pkt.tuser_sport = 1
     pkts.append(pkt)
-    offset = pack(">L", (1500 - 64) * i)
+    offset = pack("<L", (1500 - 64) * i)
     
-    expected_pkts.append(pkt / Raw(load = magic + offset + data_size + '\x00' * 20 + data[(1500 - 64) * i : (1500 - 64) * (i + 1)]))
+    expected_pkts.append(pkt / Raw(load = magic + offset + data_size + '\x00' * 10 + data[(1500 - 64) * i : (1500 - 64) * (i + 1)]))
 
     for i in range(size / (1500 - 64) + 1):
         for pkt in pkts:
             pkt.time = i*(1e-8) + (1e-6)
 
     if isHW():
-        nftest_expect_phy('nf1', pkt / Raw(load = magic + offset + data_size + '\x00' * 20 + data[(1500 - 64) * i : (1500 - 64) * (i + 1)]))
+        nftest_expect_phy('nf1', pkt / Raw(load = magic + offset + data_size + '\x00' * 10 + data[(1500 - 64) * i : (1500 - 64) * (i + 1)]))
         nftest_send_phy('nf0', pkt)
     
 if not isHW():
