@@ -65,7 +65,7 @@ nextHopMAC = "dd:55:dd:66:dd:77"
 HWDST = "00:00:00:00:00:00"
     
 # define the data we want to use 
-size = (1500 - 64) * 1 + 150
+size = (1500 - 64) * 4 + 150
 data_size = pack("<L", size)
 data = ''.join([chr(i / 0x100) + chr(i % 0x100) for i in xrange(size / 2)])
 magic = pack('<L', 0xa5a5a5a5)

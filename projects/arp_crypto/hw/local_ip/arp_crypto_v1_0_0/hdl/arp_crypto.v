@@ -215,7 +215,7 @@ module arp_crypto
 
    fallthrough_small_fifo
    #( .WIDTH(C_M_AXIS_DATA_WIDTH+C_M_AXIS_TUSER_WIDTH+C_M_AXIS_DATA_WIDTH/8+1),
-      .MAX_DEPTH_BITS(2)
+      .MAX_DEPTH_BITS(6)
     )
     input_fifo
     ( // Outputs
@@ -316,7 +316,7 @@ module arp_crypto
                     fifo_rd_en = 1;  
                     m_axis_tlast = 0;
                     m_axis_tdata[255*8-1 : 22*8]    = 0;
-                    m_axis_tdata[22*8-1  : 10*8]    = {size,offset,MAGIC}; 
+                    m_axis_tdata[22*8-1  : 10*8]    = {size[31:24],size[23:16],size[15:8],size[7:0],offset[31:24],offset[23:16],offset[15:8],offset[7:0],MAGIC[31:24],MAGIC[23:16],MAGIC[15:8],MAGIC[7:0]}; 
                     m_axis_tdata[10*8-1  : 0]       = fifo_out_tdata;
                     m_axis_tkeep[31:0]              = {32{1'b1}};
                     next_state = ARP_DMA;
