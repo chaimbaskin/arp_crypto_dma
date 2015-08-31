@@ -170,6 +170,9 @@ def nftest_init(sim_loop = [], hw_config=None):
 
         # avoid duplicating interfaces
         ifaces = list(set(connections.keys() + connections.values() + list(hw_config[portConfig][1])) - set(['']))
+	print '================!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!==========================='
+	print 'ifaces: %s' % (str(ifaces))
+	print '================!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!==========================='
 
         global iface_map
         # populate iface_map
@@ -226,7 +229,7 @@ def nftest_start():
 #            packet to send
 # Description: send a packet from the phy
 ############################
-def nftest_send_phy(ifaceName, pkt):
+def nftest_send_phy(ifaceName, pkt, exp = True):
     if connections[ifaceName] == ifaceName:
         print "Error: cannot send on phy of a port in loopback"
         sys.exit(1)
@@ -240,7 +243,7 @@ def nftest_send_phy(ifaceName, pkt):
 	f = simLib.fPort(int(ifaceName[2]) + 1)
 	axitools.axis_dump( pkt, f, 256, 1e-9 )
     else:
-        hwPktLib.send(iface_map[connections[ifaceName]], pkt)
+        hwPktLib.send(iface_map[connections[ifaceName]], pkt, exp)
 
 ############################
 # Function: nftest_send_dma
@@ -248,7 +251,7 @@ def nftest_send_phy(ifaceName, pkt):
 #            packet to send
 # Description: send a packet from the dma
 ############################
-def nftest_send_dma(ifaceName, pkt):
+def nftest_send_dma(ifaceName, pkt, exp = True):
     sent_dma[ifaceName].append(pkt)
     if sim:
         for pkt_s in pkt:
@@ -259,7 +262,7 @@ def nftest_send_dma(ifaceName, pkt):
         f = simLib.fDMA()
 	axitools.axis_dump( pkt, f, 256, 1e-9 )
     else:
-        hwPktLib.send(iface_map[ifaceName], pkt)
+        hwPktLib.send(iface_map[ifaceName], pkt, exp)
 
 ############################
 # Function: nftest_expect_phy
