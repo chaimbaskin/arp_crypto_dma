@@ -27,7 +27,4 @@
 # @NETFPGA_LICENSE_HEADER_END@
 #
 
-nf0:eth1
-nf1:eth2
-nf2:
-nf3:
+nf0:p5p1

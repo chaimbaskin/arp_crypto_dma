@@ -39,6 +39,7 @@ from scapy.layers.all import Ether, ARP, Raw
 from reg_defines_arp_crypto import *
 #from crypto_lib import *
 from struct import pack, unpack
+from time import sleep
 
 #conn = ('../connections/crossover', [])
 #nftest_init(sim_loop = ['nf0', 'nf1', 'nf2', 'nf3'], hw_config = [conn])
@@ -65,7 +66,7 @@ nextHopMAC = "dd:55:dd:66:dd:77"
 HWDST = "00:00:00:00:00:00"
     
 # define the data we want to use 
-size = (1500 - 64) * 4 + 150
+size = (1500 - 64) * 1 + 128
 data_size = pack("<L", size)
 data = ''.join([chr(i / 0x100) + chr(i % 0x100) for i in xrange(size / 2)])
 magic = pack('<L', 0xa5a5a5a5)
@@ -80,9 +81,42 @@ else:
 
 #nftest_barrier()
 
-num_broadcast = 0x14
+num_broadcast = 0
 
-## send data over dma
+
+## send transperent arp packets
+pkts = []
+expected_pkts = []
+for i in range(size / (1500 - 64) + 1):
+    DA = "ff:ff:ff:ff:ff:ff"
+    pkt = Ether(src = SA, dst = DA) / ARP(op = 'who-has', psrc = SIP, pdst = DIP, hwsrc = SA, hwdst = HWDST)
+    #pkt = Ether(src = SA, dst = DA) 
+
+    if not isHW():
+        pkt.tuser_sport = 32
+    pkts.append(pkt)
+    expected_pkts.append(pkt)
+
+    for i in range(size / (1500 - 64) + 1):
+        for pkt in pkts:
+            pkt.time = i*(1e-8) + (1e-6)
+
+if isHW():
+    for i in xrange(len(pkts)):
+        nftest_send_phy('nf0', pkts[i], False)
+        nftest_expect_phy('nf0', expected_pkts[i], '\x00' * 42)
+        nftest_expect_dma('nf0', expected_pkts[i], '\x00' * 42)
+    
+if not isHW():
+    #pass
+    nftest_send_phy('nf0', pkts)
+    nftest_expect_phy('nf1', expected_pkts)
+    nftest_expect_phy('nf2', expected_pkts)
+    nftest_expect_phy('nf3', expected_pkts)
+
+nftest_barrier()
+
+## send data over dma (test state IDLE, DMA_1, DMA_READ)
 pkts = []
 tmp_size = size
 for i in xrange(size / (1500 - 64) + 1):
@@ -91,25 +125,28 @@ for i in xrange(size / (1500 - 64) + 1):
     pkt = make_IP_pkt(src_MAC="aa:bb:cc:dd:ee:ff", dst_MAC="00:ca:fe:00:00:01",
                       src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=data_sent)
     pkt.payload.payload.load = '\x00' * (64 - 34) + data[ (1500 - 64) * i : (1500 - 64) * i + data_sent]
-    pkt.tuser_sport = 8 
     tmp_size -= data_sent
     pkt.time = (i*(1e-8))
     if isHW():
-        nftest_send_dma('nf' + '1', pkt)
-        nftest_expect_dma('nf' + '1', pkt)
+        nftest_send_dma('nf0', pkt, False)
+        nftest_expect_dma('nf0', pkt)
     else:
-        nftest_send_phy('nf0', pkt) 
-        nftest_expect_dma('nf1', pkt)
+        nftest_send_dma('nf0', [pkt]) 
+        #nftest_expect_phy('nf0', [pkt])
 
+nftest_barrier()
+
+## send arp packets with no data (test state IDLE, ARP_1, ARP_DMA)
 pkts = []
 expected_pkts = []
 for i in range(size / (1500 - 64) + 1):
     DA = "ff:ff:ff:ff:ff:ff"
     pkt = Ether(src = SA, dst = DA) / ARP(op = 'who-has', psrc = SIP, pdst = DIP, hwsrc = SA, hwdst = HWDST)
 
-    pkt.tuser_sport = 32
+    if not isHW():
+        pkt.tuser_sport = 32
     pkts.append(pkt)
-    offset = pack("<L", (1500 - 64) * i)
+    offset = pack("<L", min((1500 - 64) * (i + 1), size))
     
     expected_pkts.append(pkt / Raw(load = magic + offset + data_size + '\x00' * 10 + data[(1500 - 64) * i : (1500 - 64) * (i + 1)]))
 
@@ -117,17 +154,32 @@ for i in range(size / (1500 - 64) + 1):
         for pkt in pkts:
             pkt.time = i*(1e-8) + (1e-6)
 
-    if isHW():
-        nftest_expect_phy('nf1', pkt / Raw(load = magic + offset + data_size + '\x00' * 10 + data[(1500 - 64) * i : (1500 - 64) * (i + 1)]))
-        nftest_send_phy('nf0', pkt)
+if isHW():
+    for i in xrange(len(pkts)):
+        pass
+        #nftest_send_phy('nf0', pkts[i], False)
+        #nftest_expect_dma('nf0', expected_pkts[i])
+        #nftest_expect_phy('nf0', pkts[i], '\x00' * 42)
+        #nftest_expect_phy('nf0', pkts[i])
     
 if not isHW():
+    #for p in pkts:
+    #    nftest_send_phy('nf0', p)
     nftest_send_phy('nf0', pkts)
     nftest_expect_phy('nf1', expected_pkts)
     nftest_expect_phy('nf2', expected_pkts)
     nftest_expect_phy('nf3', expected_pkts)
 
+#for i in xrange(100000):
+#        nftest_regread_expect(SUME_ARP_CRYPTO_0_DATA1(), 0x59c) 
 #nftest_barrier()
+
+if isHW():
+    import time
+    time.sleep(1)
+    mres.append(nftest_regread_expect(SUME_ARP_CRYPTO_0_DATA3(), 1))
+else:
+    nftest_regread_expect(SUME_ARP_CRYPTO_0_DATA3(), 1) 
 
 if isHW():
     # Now we expect to see the lut_hit and lut_miss registers incremented and we
